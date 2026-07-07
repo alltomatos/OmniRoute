@@ -21,6 +21,20 @@ function toHex(bytes: Uint8Array): string {
 }
 
 /**
+ * Normalize an unknown `catch` value into a real `Error` instance.
+ *
+ * Some lower-level drivers (native SQLite bindings, WASM adapters) reject
+ * with a bare string instead of an `Error`. If that raw value escapes to a
+ * caller that assumes an `Error` shape (e.g. assigns `.message`), it throws
+ * `TypeError: Cannot create property 'message' on string '...'` — a much
+ * more confusing crash than the original failure. Normalizing at the catch
+ * site guarantees every downstream consumer gets a real `Error`.
+ */
+export function normalizeStartupError(err: unknown): Error {
+  return err instanceof Error ? err : new Error(String(err));
+}
+
+/**
  * Rename a Node process title so OmniRoute is identifiable in `ps`/`htop`
  * instead of the generic Next.js standalone server name.
  *
@@ -271,7 +285,14 @@ export async function registerNodejs(): Promise<void> {
     console.warn("[COMPLIANCE] Could not initialize audit log:", msg);
   }
 
-  await import("@/lib/db/core").then(({ ensureDbInitialized }) => ensureDbInitialized());
+  try {
+    const { ensureDbInitialized } = await import("@/lib/db/core");
+    await ensureDbInitialized();
+  } catch (err: unknown) {
+    const normalized = normalizeStartupError(err);
+    console.error("[STARTUP] Database initialization failed:", normalized.message);
+    throw normalized;
+  }
 
   // Storage-configured scheduled VACUUM (#4437): registers the timer from
   // Settings > System & Storage and persists lastVacuumAt for the UI.
