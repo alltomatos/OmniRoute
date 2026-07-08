@@ -24,7 +24,9 @@ async function restCompressionStatus() {
   const combosBody = combosRes.ok ? await combosRes.json() : { combos: [] };
   const analytics = analyticsRes && analyticsRes.ok ? await analyticsRes.json() : null;
   return {
-    engine: settings.engine ?? null,
+    // The settings payload exposes the active mode as `defaultMode`, not `engine`
+    // (matches the MCP handler's `strategy: settings.defaultMode`) — #6571.
+    engine: settings.defaultMode ?? null,
     settings,
     combos: combosBody.combos ?? combosBody,
     analytics,
@@ -43,9 +45,15 @@ async function restCompressionConfigure(config) {
 }
 
 async function restSetEngine(name) {
+  const engine = normalizeEngine(name);
+  // The settings API persists the active mode as `defaultMode`, not `engine`
+  // (an unknown `engine` key is silently ignored). Mirror the MCP handler's
+  // caveman → "standard" translation; every other id passes through — #6571.
+  const body = { defaultMode: engine === "caveman" ? "standard" : engine };
+  if (engine === "off") body.enabled = false;
   const res = await apiFetch("/api/settings/compression", {
     method: "PUT",
-    body: { engine: normalizeEngine(name) },
+    body,
   });
   if (!res.ok) {
     process.stderr.write(`Error: ${res.status}\n`);

@@ -246,5 +246,8 @@ test("compression engine set falls back to PUT /api/settings/compression on MCP 
   const restCall = calls.find((c) => c.url.includes("/api/settings/compression"));
   assert.ok(restCall, "should fall back to PUT /api/settings/compression");
   assert.equal(restCall?.method, "PUT");
-  assert.equal(restCall?.body?.engine, "rtk");
+  // The settings API persists the active mode as `defaultMode`, not the ignored
+  // `engine` key (#6571).
+  assert.equal(restCall?.body?.defaultMode, "rtk");
+  assert.equal(restCall?.body?.engine, undefined);
 });

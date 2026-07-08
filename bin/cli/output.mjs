@@ -37,6 +37,8 @@ function inferSchema(sample) {
 function formatCell(v, col) {
   if (v == null) return "";
   if (col.formatter) return col.formatter(v);
+  // Nested objects/arrays would otherwise stringify to "[object Object]" (#6571).
+  if (typeof v === "object") return JSON.stringify(v);
   return String(v);
 }
 
