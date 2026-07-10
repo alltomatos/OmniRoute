@@ -49,6 +49,18 @@ import { isCodexFreePlan, normalizeCodexTools } from "./codex/tools.ts";
 // Re-exported for external importers (tests + provider services).
 export { isCodexFreePlan, normalizeCodexTools } from "./codex/tools.ts";
 
+// #6651: `gpt-5.3-codex-spark` rejects the server-side `image_generation` hosted tool
+// upstream (HTTP 400) regardless of plan, yet the Codex Desktop app / CLI injects it into
+// every Responses request. Drop it for the spark scope as well as for free-plan accounts
+// (#2980), so paid accounts routing to spark don't fail upstream. `getCodexModelScope`
+// matches reasoning-suffixed variants (e.g. `gpt-5.3-codex-spark:high`) too.
+export function shouldDropCodexImageGeneration(
+  providerSpecificData: unknown,
+  model: string | null | undefined
+): boolean {
+  return isCodexFreePlan(providerSpecificData) || getCodexModelScope(model) === "spark";
+}
+
 // ─── wreq-js lazy loader ───────────────────────────────────────────────────
 // wreq-js is a Rust-native module that requires platform-specific .node binaries.
 // Loading it eagerly crashes the server when the binary is missing (pnpm, Docker
@@ -1129,7 +1141,10 @@ export class CodexExecutor extends BaseExecutor {
     // Cursor may include custom tools (e.g. ApplyPatch) that work locally but are
     // invalid upstream, and translation bugs can leave orphaned/empty tool_choice names.
     normalizeCodexTools(body, {
-      dropImageGeneration: isCodexFreePlan(credentials?.providerSpecificData),
+      dropImageGeneration: shouldDropCodexImageGeneration(
+        credentials?.providerSpecificData,
+        typeof body.model === "string" ? body.model : model
+      ),
       preserveCustomTools: nativeCodexPassthrough,
     });
 
