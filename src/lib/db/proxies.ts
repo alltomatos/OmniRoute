@@ -296,14 +296,21 @@ export async function createProxy(payload: ProxyPayload) {
 }
 
 /**
- * Upsert a proxy by its credential tuple (host+port+username+password).
- * If a proxy with the same host, port, username AND password already exists,
- * update it. Otherwise, create a new one. Used by the bulk import feature.
+ * Upsert a proxy by its identity tuple (host+port+username).
+ * If a proxy with the same host, port AND username already exists, update it
+ * (treating `password` as a mutable field). Otherwise, create a new one. Used
+ * by the bulk import feature.
  *
  * #7594: host+port alone is NOT a stable identity. Rotating residential/gateway
  * proxies route every credential through one shared host:port, so keying only on
  * host+port collapsed distinct-credential imports onto the first existing row
  * (the same entry got "updated" N times instead of N entries being created).
+ * Distinct credentials on such gateways differ by username (the session is
+ * encoded there), so host+port+username still separates them.
+ *
+ * #7703: password must NOT be part of the identity key. Including it meant a
+ * password-only rotation never matched the existing row, so re-importing a
+ * proxy whose password changed created a duplicate instead of updating it.
  */
 export async function upsertProxy(payload: ProxyPayload): Promise<{
   proxy: ProxyRegistryRecord | null;
@@ -313,13 +320,12 @@ export async function upsertProxy(payload: ProxyPayload): Promise<{
   const host = (payload.host || "").trim();
   const port = Number(payload.port);
   const username = (payload.username || "").trim();
-  const password = (payload.password || "").trim();
 
   const existing = db
     .prepare(
-      "SELECT id FROM proxy_registry WHERE host = ? AND port = ? AND username = ? AND password = ? LIMIT 1"
+      "SELECT id FROM proxy_registry WHERE host = ? AND port = ? AND username = ? LIMIT 1"
     )
-    .get(host, port, username, password) as { id?: string } | undefined;
+    .get(host, port, username) as { id?: string } | undefined;
 
   if (existing?.id) {
     const updated = await updateProxy(existing.id, payload);
