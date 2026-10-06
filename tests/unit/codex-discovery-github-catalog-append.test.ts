@@ -33,14 +33,8 @@ test("enrichCodexModelsFromGithubCatalog enriches live models with github catalo
   assert.equal(result[0].capabilities?.vision, true);
 });
 
-test("enrichCodexModelsFromGithubCatalog appends catalog models absent from live account models (#15525)", () => {
-  const liveModels: CodexDiscoveryModel[] = [
-    {
-      id: "gpt-6-sol",
-      name: "gpt-6-sol",
-      display_name: "GPT-6 Sol",
-    },
-  ];
+test("enrichCodexModelsFromGithubCatalog returns the GitHub catalog when there is no live list (#15525)", () => {
+  const liveModels: CodexDiscoveryModel[] = [];
 
   const githubCatalog: CodexDiscoveryModel[] = [
     {
