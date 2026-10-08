@@ -252,8 +252,12 @@ function parseCodex(data: any) {
 }
 
 function buildClaudeExtraUsageQuota(extraUsage: any) {
-  const monthlyLimit = Number(extraUsage?.monthly_limit ?? 0);
-  const usedCredits = Number(extraUsage?.used_credits ?? 0);
+  const decimalPlaces = Number(extraUsage?.decimal_places ?? 0);
+  const scale = Number.isFinite(decimalPlaces) && decimalPlaces > 0 ? 10 ** decimalPlaces : 1;
+  const rawMonthlyLimit = Number(extraUsage?.monthly_limit ?? 0);
+  const rawUsedCredits = Number(extraUsage?.used_credits ?? 0);
+  const monthlyLimit = Number.isFinite(rawMonthlyLimit) ? rawMonthlyLimit / scale : 0;
+  const usedCredits = Number.isFinite(rawUsedCredits) ? rawUsedCredits / scale : 0;
   const utilization = Number(extraUsage?.utilization ?? 0);
   const remainingPercentage = Number.isFinite(utilization)
     ? Math.max(0, 100 - utilization)
